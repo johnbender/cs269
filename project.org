@@ -1,0 +1,258 @@
+* resources
+  - https://en.wikipedia.org/wiki/List_of_convolutions_of_probability_distributions
+  - https://en.wikipedia.org/wiki/Irwin–Hall_distribution 
+
+* goal
+  
+  #+begin_quote
+  rewrite Prob PL program expression to distribution queries
+  #+end_quote
+
+* examples
+** identities 
+   
+   - irwin hall 
+     
+     #+begin_example
+     sum = 0;
+     for i in 1..2 do
+       sum = sum + rand(0, 1)
+     #+end_example
+
+     #+begin_example
+     sum = 0;
+     sum = sum + rand(0, 1);
+     sum = sum + rand(0, 1)
+     #+end_example
+
+     #+begin_example
+     assignment 1:
+
+     --------------
+     sum = 0 : nat
+
+
+     assignment 2:
+
+     sum : nat    rand(0, 1) : dist uniform 0 1    iid(sum, rand(0, 1))
+     -----------------------------------------------------------------
+     sum + rand(0, 1) : dist uniform sum sum+1
+
+
+     assignment 3:
+
+     sum : dist uniform sum sum+1     rand(0, 1) : dist uniform 0 1    iid(sum, rand(0, 1))
+     --------------------------------------------------------------------------------------
+     sum + rand(0, 1) : dist iw ...
+     #+end_example
+
+** CTL 
+   
+   - given a "large enough" set of samples from distribution with the same
+     expectation and stdev we can replace that with the normal distribution
+     around the expectation 
+
+     #+begin_example
+     for i 1..n do
+       sum = sum + dist(u, sig) * i 
+     #+end_example
+     
+     we can factor out dist to ~norm(u, sig)~
+     
+     #+begin_example
+     for i 1..n do
+       sum = sum + i
+
+     sum * norm(u, sig)
+     #+end_example
+   
+* framework
+
+  #+begin_example
+  canon e D <=> e is the canonical expression representing a distribution
+
+  eg,
+    canon rand(0,1) (dist uniform 0 1)
+    canon (rand(0,1) * (b-a) + a) (dist uniform a b)
+
+  #V(v) = count of v in V
+
+  pdf_e(v) = #V(v)/|V|
+    where V = { v' | e || v' } (multiset)
+          |V| -> inf
+
+  pdf_e = pdf_e' <=> forall v, pdf_e(v) = pdf_e'(v)
+  pdf_e(v) = D(v) <=> canon ec D /\ pdf_ec(v) = pdf_e(v)
+
+  Transformation Soundness
+
+  if [[e]] = e' then pdf_e = pdf_e'
+
+  (1) Type soundness
+
+  if e : D and e || v then pdf_e(v) = D(v)
+
+  (2) Transformation type preservation
+
+  if [[e]] = e' and [[e]] : D then e' : D
+  #+end_example
+* task
+** questions
+*** DONE why are random variables measurable functions?
+    CLOSED: [2017-11-22 Wed 20:50]
+    #+begin_example
+    # probability space
+    W1 = {HH, HT, TH, TT}
+    Sig1 = Pow(W1) = {{HH}, {HT}, {TH}, {TT}, {HH, HT}, {HH, TH}, ... }
+
+    # state space
+    W2 = {0, 1, 2}
+    Sig2 = Pow(W2) = {{0}, {1}, {2}, {0,1} ... {0, 1, 2}}
+
+    # is the preimage constraint satisfied? Examples
+    # E in Sig2 
+    # {0, 1} inverse of X on each element {TT, HT} is in Sig1
+    #                                also {TT, TH} is in Sig1
+    # 
+    # The inverse is not a function?
+    
+    X : W1 -> W2
+    P : Sig1 -> [0,1]
+
+    X(HH) = 2 
+    X(HT) = 1
+    X(TH) = 1
+    X(TT) = 0
+
+    P({HH}) = 0.25
+    P({HT}) = 0.25
+    P({TH}) = 0.25
+    P({TT}) = 0.25
+    P({HH, HT}) = 0.50
+    ...
+    P({HH, HT, TH}) = 0.75 
+    ...
+    P({HH, HT, TH, TT}) = 1
+
+    In which case 
+
+    # intuition
+    Pr(X > 0) = Pr({HH, HT, TH}) = 0.75
+
+    # from wikipedia
+    # If A ⊂ S, the notation Pr(X ∈ A) is a commonly used shorthand for P({ω ∈ Ω: X(ω) ∈ A}).
+    # Pr({w in W : X(w) in {1, 2}
+    Pr(X > 0)
+      = Pr(X in {1, 2})
+      = Pr({w in W : X(w) in {1, 2})
+      = Pr({HH, HT, TH})
+      = 0.75
+    #+end_example
+
+*** TODO what is the intuition behind convolution of discrete random variables?
+    
+    Borrowing the random variables example from above:
+
+    #+begin_example
+    # probability space
+    W1 = {HH, HT, TH, TT}
+    Sig1 = Pow(W1) = {{HH}, {HT}, {TH}, {TT}, {HH, HT}, {HH, TH}, ... }
+
+    # state space
+    W2 = {0, 1, 2}
+    Sig2 = Pow(W2) = {{0}, {1}, {2}, {0,1} ... {0, 1, 2}}
+
+    # two random variables 
+    X : W1 -> W2
+    Y : W1 -> W2
+    P : Sig1 -> [0,1]
+
+    # first coint flipped twice, number heads
+    X(HH) = 2 
+    X(HT) = 1
+    X(TH) = 1
+    X(TT) = 0
+
+    # second coin flipped twice, number tails
+    Y(HH) = 0 
+    Y(HT) = 1
+    Y(TH) = 1
+    Y(TT) = 2
+
+    P({HH}) = 0.25
+    P({HT}) = 0.25
+    P({TH}) = 0.25
+    P({TT}) = 0.25
+    P({HH, HT}) = 0.50
+    ...
+    P({HH, HT, TH}) = 0.75 
+    ...
+    P({HH, HT, TH, TT}) = 1
+
+    # defnition of Z = X + Y, both coins flipped twice?
+    Z(w, w) = X(w) + Y(w)
+
+    ww = W1 x W2 = {(HH, HH), (HH, HT), (HH, TH), (HH, TT) ... (TT, TT)}
+    Sig3 = Pow(ww)
+
+    # P by construction
+    P({HH}, {HH}) = P({HH}) * P({HH})
+    P({TT}, {TT}) = P({TT}) * P({TT})
+    ...
+
+    # also we can define the probability distribution through convolution
+    P(Z = z) = sum(k, -inf, inf, Pr(X = k)*Pr(Y = z-k))
+
+    # probability that both counts sum to 1 
+    P(Z = 4) =
+      ... + # Pr of all worlds where X < 0, zero worlds, zero probability 
+      Pr(X = 0)*Pr(Y = 4) + # There are no worlds where Y = 4 so zero prob
+      Pr(X = 1)*Pr(Y = 3) + # there are no worlds where Y = 3 so zero prob
+      Pr(X = 2)*Pr(Y = 2) + # = 0.25 * 0.25 = Pr({HH}) * Pr({TT})
+      Pr(X = 3)*Pr(Y = 1) + # there are no worlds where X = 3 so zero prob
+      Pr(X = 4)*Pr(Y = 0) + # there are no worlds where X = 4 so zero prob
+      ... # Pr of all worlds where X > 2, zero worlds, zero probability 
+
+    # probability that the counts sum to 2
+    Pr(Z = 2) =
+      ... + # Pr of all worlds where X < 0, zero worlds, zero probability 
+      Pr(X = 0)*Pr(Y = 2) + # = 0.25 * 0.25 = Pr({TT}) * Pr({TT}) = Pr({(TT, TT)})
+      Pr(X = 1)*Pr(Y = 1) + # = 0.75 * 0.75 = Pr(w1 = {HT, TH}) * Pr(w2 = {HT, TH}) = Pr(w1 x w2)
+      Pr(X = 2)*Pr(Y = 0) + # = 0.25 * 0.25 = Pr({HH}) * Pr({HH})
+      ... # Pr of all worlds where X > 2, zero worlds, zero probability
+    #+end_example
+
+*** TODO why are functions from A -> U in coq measurable?
+    - ~U = [0, 1]~
+    - 
+    - why do they admit an inverse?
+      - not all coq functions do since for example, one can encode addition in coq
+      - it's not clear that they need to, see question about random variables as
+        measurable functions
+    - why do they always satisfy the preimage constraint ~(W, Sig), for x in W, f^-1(x) in Sig~?
+    - why is the preimage constraint important?
+      - idea: prevents "the measure problem" as described by Tao in his book.
+        this would prevent the "doubling" of the measure using the function f(x)
+        = 2x for f : A -> B where A = [0,1] and B = [0,1] since every point in
+        the target metric space [0,2] does not appear in the source space [0,1]
+*** TODO why are sequenced statements convolved in Steven's semantics?
+    - ie, why does sequencing sum distributions?
+    - doesn't the substitution of the variable mean they are not independent?
+      
+      It seems to follow the wikipedia definition of convolution for two random
+      variables but that requires independence. Doesn't the substitution of the 
+      random variable make the second expression dependent on the first?
+      
+    - what is the intuition behind convolution as a sum of distributions?
+    - are let statements convolved in the ALEA semantics?
+*** TODO what does the predicate `ok` mean?
+*** TODO why does a proof of `ok` for the given values imply termination?
+*** TODO why is this relevant to optimizing transformations?
+    - we need to prove equivalence in the limit of expressions so we need 
+      machinary like that in the proof of termination for iterflip
+** formalize language 
+** logic for data flow
+*** TODO pure language extensions (if else, addition)
+*** TODO define rules
+** library for reasoning about distributions
+*** 

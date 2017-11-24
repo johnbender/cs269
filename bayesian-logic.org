@@ -1,0 +1,461 @@
+* logic programming
+  - examples
+    - nat
+       
+      #+begin_example
+      nat(zero)
+      nat(S(x)) :- nat(x)
+      #+end_example
+
+    - parents
+
+      #+begin_example
+      parent(jeff, paul)
+      parent(paul, ann)
+      grandparent(X, Z) :- parent(X, Y), parent(Y, Z)
+      #+end_example
+  - herbrand base
+    #+begin_quote
+    The Herbrand base of a logic program T, denoted as HB(T), is the set of all
+    ground atoms constructed with the predicate, constant and function symbols
+    in alphabet of
+    #+end_quote
+
+    - nat
+      
+      #+begin_example
+      nat(zero)
+      nat(S(...(zero)))
+      ...
+      #+end_example
+
+    - parents
+
+      #+begin_example
+      parent(jeff, jeff)
+      parent(ann, jeff)
+      grandparent(jeff, jeff) 
+      ...
+      #+end_example
+  - herbrand interpretation 
+    Any subset of the base
+  - least herbrand model
+
+    "immediate consequence"
+
+    #+begin_example
+    T(B, I) = { Au | exists subst u, clause A :- A1 ... An, s.t.
+                       A :- A1 ... An in B
+                       Au :- Ai u, ..., An u is ground, 
+                       Aj u in I }
+    #+end_example
+
+    Repeatedly apply ~T(B, I)~ to it's output until a fixed point is reached
+
+    - nat
+
+      #+begin_example
+      T(B, I) = HB
+      #+end_example
+
+    - parent
+      
+      #+begin_example
+      grandparent(jeff, ann)
+      parent(jeff, paul)
+      parent(paul, ann)
+      #+end_example
+* bayesian logic programming
+  - compiler
+    #+begin_example
+    [ LHBp ] = ([ LHBp ]g, [ LHBp ]cpt)
+
+    // assume sorted in imm conseq order (later implicands at the front)
+    [ A, LHBp' ]g = [ LHBp' ]g U { (A, A') | A' in implicants(A, LHBp) }
+
+    [ A, LHBp' ]cpt = [ LHBp' ]cpt U { (A, P.CPT(A)) } if oneclause(A)
+    [ A, LHBp' ]cpt = [ LHBp' ]cpt U { combine({ P.CPT(A) }) } if !oneclause(A)
+    #+end_example
+
+
+
+  - questions
+    - missing prop variables later pages
+    - example of conditional instantiation 
+  - semantics
+    - convert logic programs to a bayesian network
+      - similar to converting markov logic to model counting
+      - no cycles
+    - run inference in that network
+  - example
+    - blood type
+      
+      #+begin_example
+      m(ann, dorothy)
+      f(brian, dorothy)
+      pc(ann)
+      pc(brian)
+      mc(ann)
+      mc(brian)
+
+      mc(X) :- m(Y, X), mc(Y), pc(Y)
+      pc(X) :- f(Y, X), mc(Y), pc(Y)
+      bt(X) :- mc(X), pc(X)
+      #+end_example
+
+      "has a blood type"
+
+      #+begin_example
+      bt(X) :- mc(X), pc(X)
+      #+end_example
+      
+  - concepts
+    - predicates come equiped with states
+      - ~mc~/~pc~ have ~{ a, b, 0 }~
+      - ~bt~ has ~{ a, b, ab, 0 }~
+      - ~m~/~p~ have ~{t, f}~ 
+    - ground atoms are random variables
+      - ~female(anne)~ represents the probability that anne is a female
+      - ~bt(anne)~ represents the probability that anne has a bt (a, b, ab, 0)
+    - herbrand interpretation has all random variables
+    - clauses with head/body encode causality 
+      #+begin_example
+      a( ... ) :- b( ... ), ...
+      a( ... ) | b( ... ), ...
+      #+end_example
+    - clauses come equiped with cpts
+      - mc
+        
+        | m   | mc | pc | mc, (a, b, 0)   |
+        | t   | a  | a  | (.98, .01, .01) |  pr(mc = a | m = t, mc = a, pc = a) = .98
+        | t   | b  | a  | (.01, .98, .01) |
+        | ... |    |    |                 |
+
+        given those three things the probabilities of everything else is zero
+
+        TODO how will this translate into normal bayesian cpt
+
+        This should be the same cpt for each random variable defined by the
+        head of clause 
+
+        | m   | mc | pc | mc |  pr |
+        | t   | a  | a  | a  | .98 |
+        | t   | a  | a  | b  | .01 |
+        | t   | a  | a  | 0  | .01 |
+        | t   | b  | a  | a  | .01 |
+        | t   | b  | a  | b  | .98 |
+        | t   | b  | a  | 0  | .01 |
+        | ... |    |    |    |     |
+ 
+    - bt
+
+       | mc  | pc | bt |   pr |
+       | a   | a  | a  | 0.97 |
+       | a   | a  | b  |  0.1 |
+       | a   | a  | ab |  0.1 |
+       | a   | a  | 0  |  0.1 |
+       | ... |    |    |      |
+
+        
+    - combining disjoined clauses 
+      - example 
+        #+begin_example
+        foo(X) :- bar(X)
+        foo(X) :- baz(X)
+        #+end_example
+
+        We'll need some method for combining the cpds
+
+        since if we just leave it we'll end up with, assuming binary state
+        
+        foo(x) | bar(x) 
+        foo(x) | baz(x) 
+
+        bar(somex) baz(somex)
+            \        /
+            foo(somex)
+
+        and the cpt
+        
+        | bar(somex) | bar(somex) | foo(somex)     |
+        |          0 |          0 | (pr(0), pr(1)) |
+        |          0 |          1 | (pr(0), pr(1)) |
+        |          0 |          0 |                |
+        |          0 |          1 |                |
+        
+        Which corresponds with
+
+        ~Pr(foo(somex) | bar(somex) /\ baz(somex))~
+
+        When we really want
+
+        ~Pr(foo(somex) | bar(somex) \/ baz(somex))~
+
+      - combining rules
+
+        #+begin_example
+        { P(A | Ai1, ..., Ain_i } -> { P(A | B1, ..., Bk) | Bi in \/ {Ain, ..., Ain_i } }
+
+        #+end_example
+      - average 
+
+        Assumes the number of clauses in the body is the sames
+        Assumes the state representation for each "vertically aligned" atom is the same
+        
+        #+begin_example
+        A | A11, ... A1n_1
+        A | A21, ... A2n_1
+        A | Aj1, ... Ajn_j
+
+        S(A11) = S(A21) = ... = S(Aj1)
+        ...
+        S(A1n_1) = S(1n_1) = ... = S(Ajn_j)
+        #+end_example
+
+        Cartesian product of states, ~S(A11) x ... x S(A1n_1)~. In which case
+        each clause has "rows" in their cpt/cpd then just take the average for
+        each row for each clause
+
+    - uniform cpts for each grounding of a clause
+
+* BLOG
+  - brief syntax overview
+    - counts
+    - random variable
+    - types
+
+  - earthquake
+    #+begin_example
+      random Boolean Burglary ~ BooleanDistrib(0.001);
+
+      random Boolean Earthquake ~ BooleanDistrib(0.002);
+
+      random Boolean Alarm ~
+        if Burglary then
+          if Earthquake then BooleanDistrib(0.95)
+          else  BooleanDistrib(0.94)
+        else
+          if Earthquake then BooleanDistrib(0.29)
+          else BooleanDistrib(0.001);
+
+      random Boolean JohnCalls ~
+        if Alarm then BooleanDistrib(0.9)
+        else BooleanDistrib(0.05);
+
+      random Boolean MaryCalls ~
+        if Alarm then BooleanDistrib(0.7)
+        else BooleanDistrib(0.01);
+
+      /* Evidence for the burglary model saying that both 
+       * John and Mary called.  Given this evidence, the posterior probability 
+       * of Burglary is 0.284 (see p. 505 of "AI: A Modern Approach", 2nd ed.).
+       */
+
+      obs JohnCalls = true;
+      obs MaryCalls = true;
+
+      /* Query for the burglary model asking whether Burglary 
+       * is true.
+       */
+
+      query Burglary;
+      #+end_example
+    - ~Burglary~ and ~Earthquake~
+
+      #+begin_example
+      random Boolean Burglary ~ BooleanDistrib(0.001);
+
+      burglary(1) # states are boolean
+      #+end_example
+
+      CPT 
+
+      | b(1) |    pr |
+      | t    | 0.001 |
+      | f    | 0.999 |
+    - ~Alarm~
+
+      #+begin_example
+      random Boolean Alarm ~
+        if Burglary then
+          if Earthquake then BooleanDistrib(0.95)
+          else  BooleanDistrib(0.94)
+        else
+          if Earthquake then BooleanDistrib(0.29)
+          else BooleanDistrib(0.001);
+
+      case Burglary then {
+        true -> 
+          case Earthquake then {
+            true -> BooleanDistrib(0.95)
+            false -> BooleanDistrib(0.94) 
+          }
+
+        false -> 
+          case Earthquake then {
+            true -> BooleanDistrib(0.29)
+            false -> BooleanDistrib(0.001)
+          }
+      };
+
+      ~=
+
+      alarm(X) :- burglary(X) == true, earthquake(X) == true (state, boolean)
+      alarm(X) :- burglary(X) == true, earthquake(X) == false (")
+      alarm(X) :- burglary(X) == false, earthquake(X) == true (")
+      alarm(X) :- burglary(X) == false, earthquake(X) == false (")
+
+      ~= 
+        
+      alarm(X) :- burglary(X), earthquake(X) # states are Boolean 
+      #+end_example
+
+      CPT
+      
+      | b | e | a |    pr |
+      | t | t | t |  0.95 |
+      | t | t | f |  0.05 |
+      | t | f | t |  0.94 |
+      | t | f | f |  0.04 |
+      | f | t | t |  0.29 |
+      | f | t | f |  0.71 |
+      | f | f | t | 0.001 |
+      | f | f | f | 0.999 |
+
+    - ~JohnCalls~
+
+      #+begin_example
+      random Boolean JohnCalls ~
+        if Alarm then BooleanDistrib(0.9)
+        else BooleanDistrib(0.05);
+
+      johncalls(X) :- alarm(X)
+      #+end_example
+
+      CPT
+
+      | a | jc |   pr |
+      | t | t  |  0.9 |
+      | t | f  |  0.1 |
+      | f | t  | 0.05 |
+      | f | f  | 0.95 |
+    - query
+      
+      #+begin_example
+      obs JohnCalls = true;
+      query Burglary;
+      #+end_example
+
+      ~Pr(B(1) | JohnCalls(1) = true)~
+
+  - genetic seq
+    
+    - ~State~ 
+      
+      #+begin_example
+      random State S(Timestep t) ~
+        if t == @0 then 
+          Categorical({A -> 0.3, C -> 0.2, G -> 0.1, T -> 0.4})
+        else case S(prev(t)) in {
+          A -> Categorical({A -> 0.1, C -> 0.3, G -> 0.3, T -> 0.3}),
+          C -> Categorical({A -> 0.3, C -> 0.1, G -> 0.3, T -> 0.3}),
+          G -> Categorical({A -> 0.3, C -> 0.3, G -> 0.1, T -> 0.3}),
+          T -> Categorical({A -> 0.3, C -> 0.3, G -> 0.3, T -> 0.1})
+        };
+
+      [ random T V( a1,...,an ) ~ e ] = [ e, V, a1,...,an ] 
+      [ if cond then e1 else e2, V, a1,...,an ] = [ case cond in { true -> e1, false -> e2 }, V, a1,...,an ]
+      [ case e { S1 -> e1, ..., Sn -> en }, V, a1,...,an ] = 
+         V(a1,...,an) :- e = S1, [ e1, V, a1,...,an ]
+         ... 
+         V(a1,...,an) :- e = Sn, [ en, V, a1,...,an ]
+
+        if t == @0 then 
+          Categorical({A -> 0.3, C -> 0.2, G -> 0.1, T -> 0.4})
+        else case S(prev(t)) in {
+          A -> Categorical({A -> 0.1, C -> 0.3, G -> 0.3, T -> 0.3}),
+          C -> Categorical({A -> 0.3, C -> 0.1, G -> 0.3, T -> 0.3}),
+          G -> Categorical({A -> 0.3, C -> 0.3, G -> 0.1, T -> 0.3}),
+          T -> Categorical({A -> 0.3, C -> 0.3, G -> 0.3, T -> 0.1})
+        };
+
+        case t == @0 in {
+          /* cheating a bit */
+          @0 -> Categorical({A -> 0.3, C -> 0.2, G -> 0.1, T -> 0.4})
+          _ -> case S(prev(t)) in {
+                 A -> Categorical({A -> 0.1, C -> 0.3, G -> 0.3, T -> 0.3}),
+                 C -> Categorical({A -> 0.3, C -> 0.1, G -> 0.3, T -> 0.3}),
+                 G -> Categorical({A -> 0.3, C -> 0.3, G -> 0.1, T -> 0.3}),
+                 T -> Categorical({A -> 0.3, C -> 0.3, G -> 0.3, T -> 0.1})
+               }
+        };
+
+        S(t) :- t = 0
+        S(t) :- t <> 0, S(prev(t)) == A (state, categorical)
+        S(t) :- t <> 0, S(prev(t)) == B (state, categorical)
+        S(t) :- t <> 0, S(prev(t)) == C
+        S(t) :- t <> 0, S(prev(t)) == D
+
+        ~= rewrite
+
+        S(0)
+        S(t) :- S(prev(t)) == A
+        S(t) :- S(prev(t)) == B
+        S(t) :- S(prev(t)) == C
+        S(t) :- S(prev(t)) == D
+
+        ~= states
+
+        S(0)
+        S(t) :- S(prev(t))
+      #+end_example
+      
+      CPT
+      
+      | s(0) |  pr |
+      | A    | 0.3 |
+      | C    | 0.2 |
+      | G    | 0.1 |
+      | T    | 0.4 |
+      
+      | s(prev(t)) | s(t) |  pr |
+      | A          | A    | 0.1 |
+      | A          | C    | 0.3 |
+      | A          | G    | 0.3 |
+      | A          | T    | 0.3 |
+      | ...        |      |     |
+
+    - ~Output~ 
+      
+      #+begin_example
+      random Output O(Timestep t) ~ 
+        case S(t) in {
+          A -> Categorical({
+            ResultA -> 0.85, ResultC -> 0.05, 
+            ResultG -> 0.05, ResultT -> 0.05}),
+          C -> Categorical({
+            ResultA -> 0.05, ResultC -> 0.85, 
+            ResultG -> 0.05, ResultT -> 0.05}),
+          G -> Categorical({
+            ResultA -> 0.05, ResultC -> 0.05, 
+            ResultG -> 0.85, ResultT -> 0.05}),
+          T -> Categorical({
+            ResultA -> 0.05, ResultC -> 0.05, 
+            ResultG -> 0.05, ResultT -> 0.85})
+        };
+
+      =~
+      
+      o(t) :- s(t) 
+      #+end_example
+      
+      CPT
+
+      | s(t) | o(t) |   pr |
+      | A    | A    | 0.85 |
+      | A    | C    | 0.05 |
+      | A    | G    | 0.05 |
+      | A    | T    | 0.05 |
+      | ...  |      |      |
+      |      |      |      |
+      
