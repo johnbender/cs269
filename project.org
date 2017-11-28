@@ -114,7 +114,11 @@
     # {0, 1} inverse of X on each element {TT, HT} is in Sig1
     #                                also {TT, TH} is in Sig1
     # 
-    # The inverse is not a function?
+    # It's not really the inverse of the function, from the wikipedia page
+    #
+    # f^-1(E) := {x in X | f(x) in E } in Sig1 forall E in Sig2
+    #
+    # It operates on subsets of the second measurable space
     
     X : W1 -> W2
     P : Sig1 -> [0,1]
@@ -149,8 +153,19 @@
       = 0.75
     #+end_example
 
-*** TODO what is the intuition behind convolution of discrete random variables?
-    
+*** DONE what is the intuition behind convolution of discrete random variables?
+    CLOSED: [2017-11-24 Fri 12:54]
+
+    The cartesian product of the two state spaces and the corresponding product
+    of probabilities. Convolution gets the sum of the product of probabilites 
+    at any given point for the new variable. 
+
+    Sum of the probabilities of all the ways to make the new variables take its
+    value as a function of the other two variables.
+
+    At every discreat point sum the probabilities of all the way to make the
+    additive outcome of the variables equal that point.
+
     Borrowing the random variables example from above:
 
     #+begin_example
@@ -224,7 +239,6 @@
 
 *** TODO why are functions from A -> U in coq measurable?
     - ~U = [0, 1]~
-    - 
     - why do they admit an inverse?
       - not all coq functions do since for example, one can encode addition in coq
       - it's not clear that they need to, see question about random variables as
@@ -245,9 +259,18 @@
       
     - what is the intuition behind convolution as a sum of distributions?
     - are let statements convolved in the ALEA semantics?
-*** TODO what does the predicate `ok` mean?
-*** TODO why does a proof of `ok` for the given values imply termination?
-*** TODO why is this relevant to optimizing transformations?
+*** DONE what does the predicate `ok` mean?
+    CLOSED: [2017-11-27 Mon 11:33]
+    - given a lower bound ~p~, the sum of the probabilities in the set
+      represented by alpha filtered by ~q~ for distribution ~e~ is greater.
+*** DONE why does a proof of `ok` for the given values imply termination for iterflip?
+    CLOSED: [2017-11-27 Mon 11:33]
+    - Based on our understanding of the distribution, if the sum of
+      probabilities for all values in Z is 1 then all of them have some
+      probability of being the return value. But because the function is pure,
+      non-termination would imply that some value has the probability zero.
+*** DONE why is this relevant to optimizing transformations?
+    CLOSED: [2017-11-27 Mon 11:33]
     - we need to prove equivalence in the limit of expressions so we need 
       machinary like that in the proof of termination for iterflip
 ** formalize language 
@@ -256,3 +279,173 @@
 *** TODO define rules
 ** library for reasoning about distributions
 *** 
+* progress
+** okfun (is it really though?)
+*** iterflip almost surely terminates
+    #+begin_example
+    (* iterflip : Z -> distr Z *)
+    letrec iterflip x = if flip() then iterflip (x+1) else x
+    #+end_example
+
+*** almost surely terminates
+    
+    #+begin_example
+    Lemma iterflip_term : okfun (fun k => 1) iterflip q1.
+
+    Definition okfun (A B:Type)(p:A -> U)(e:A -> distr B)(q:A -> B -> U)
+      := forall x:A, ok (p x) (e x) (q x).
+
+    Definition ok (A:Type) (p:U) (e:distr A) (q:A -> U) 
+      := p <= mu e q.
+
+    (** mu : (distr Z) -> ((Z -m> [0,1]) -m> [0,1]) 
+        q = fun z => 1.
+        p = 1 
+        mu e : (Z -m> [0,1]) -m> [0,1]  
+        mu e q : [0,1] *)
+    #+end_example
+
+*** core ideas
+    - ~p~ defines a lower bound
+    - ~q~ defines a subset of the sample space ~Z~ (as a "filter")
+    - ~mu~ is a measure over subsets of ~Z~, it defines a distribution over ~Z~
+    - ~p <= mu e q~, the probability sum for all elements of ~Z~ is 1
+
+** a measure of measure theory
+   - measurable space, ~(W, Sig)~
+     - sample space ~W~
+       - eg, two flips of the same coin Wc = {HH, HT, TH, TT}
+     - sigma algebra ~Sig~
+       - set of sets with elements drawn from sample space
+       - eg, the powerset of Wc 
+       - closed under countable union/intersection and complementation
+       - includes empty set
+       - why these constraints? 
+         - uniformity of the set avoids problems with "measuring"
+   - measurable function, ~f: W1 -> W2~
+     - maping between sample spaces
+     - can be thought of as a filter on W1
+     - if ~S in Sig2~ then ~{ x | f(x) in S }~ must be in ~Sig1~
+       - sometimes ~f: (W1, Sig1) -> (W2, Sig2)~
+     - eg, random variable X "# of heads"
+   - probability measure
+     - measure from sigma algebra to unit interval [0,1]
+     - ~mu(empty) = 0~
+     - ~mu(A) = n, n >= 0~ for all A in Sig
+     - additive union, ~mu(U Si) = sum mu(si)~
+     - ~mu(W) = 1~
+   - probability space
+     - measurable space equiped with a probability measure
+   - Example: random variable as a measurable function, two coin tosses
+     - ~(W1, Sig1)~
+       #+begin_example
+       W1 = {HH, HT, TH, TT}
+       Sig1 = Pow(W1) = {{HH}, {HT}, {TH}, {TT}, {HH, HT}, {HH, TH}, ... }
+       #+end_example
+     - ~(W2, Sig2)~
+       #+begin_example
+       W2 = {0, 1, 2}
+       Sig2 = Pow(W2) = {{0}, {1}, {2}, {0,1} ... {0, 1, 2}}
+       #+end_example
+     - Random variable ~X~ 
+       #+begin_example
+       X : W1 -> W2
+
+       X(HH) = 2 
+       X(HT) = 1
+       X(TH) = 1
+       X(TT) = 0
+       #+end_example
+     - Probability measure ~P~ 
+       #+begin_example
+       P : Sig1 -> [0,1]
+
+       P({HH}) = 0.25
+       P({HT}) = 0.25
+       P({TH}) = 0.25
+       P({TT}) = 0.25
+       P({HH, HT}) = 0.50
+       ...
+       P({HH, HT, TH}) = 0.75 
+       ...
+       P({HH, HT, TH, TT}) = 1
+       #+end_example
+     - Queries on the random variable
+       #+begin_example
+       # intuition
+       Pr(X > 0) = Pr({HH, HT, TH}) = 0.75
+
+       # Using X as a map to a measurable space
+       # 1. define the set of elements in the codomain that satisfy the query {1,2}
+       # 2. generate the set of element in the domain that result in elements in the codomain
+       # 3. apply the probability measure to that set
+       # Pr({w in W : X(w) in {1, 2}})
+       Pr(X > 0)
+         = Pr(X in {1, 2})
+         = Pr({w in W : X(w) in {1, 2})
+         = Pr({HH, HT, TH})
+         = 0.75
+       #+end_example
+** probability monad
+*** haskel
+    #+begin_example
+    newtype Probability = P Float
+    newtype Dist a = D {unD :: [(a,Probability)]}
+
+    type Event a = a -> Bool
+    (??) :: Event a -> Dist a -> Probability
+    (??) p = P . sum . map snd . filter (p . fst) . unD
+    
+    class Monad m where
+      (>>=)  :: m a -> (a -> m b) -> m b
+      (>>)   :: m a -> m b -> m b
+      return :: a -> m a
+      fail   :: String -> m a  
+
+    instance Monad Dist where
+      return x    = D [(x,1)]
+      (D d) >>= f = D [(y,q*p) | (x,p) <- d, (y,q) <- unD (f x)]
+      fail        = D []
+    #+end_example
+
+*** alea 
+    #+begin_example
+    Definition MF (A:Type) := A -m> [0,1].
+    Definition M (A:Type) := MF A -m> [0,1].
+    (** Definition M (A:Type) := (A -m> [0,1]) -m> [0,1]. *)
+
+    Definition unit (A:Type) (x:A) : M A.
+    Definition star : forall (A B:Type), M A -> (A -> M B) -> M B.
+    #+end_example
+
+** review
+*** almost surely terminates
+    
+    #+begin_example
+    Lemma iterflip_term : okfun (fun k => 1) iterflip q1.
+
+    Definition okfun (A B:Type)(p:A -> U)(e:A -> distr B)(q:A -> B -> U)
+      := forall x:A, ok (p x) (e x) (q x).
+
+    Definition ok (A:Type) (p:U) (e:distr A) (q:A -> U) 
+      := p <= mu e q.
+
+    (** mu : (distr Z) -> ((Z -m> [0,1]) -m> [0,1]) 
+        q = fun z => 1.
+        p = 1 
+        mu e : (Z -m> [0,1]) -m> [0,1]  
+        mu e q : [0,1] *)
+    #+end_example
+
+*** core ideas
+    - ~p~ defines a lower bound
+    - ~q~ defines a subset of the sample space ~Z~ (as a "filter")
+    - ~mu~ is a measure over subsets of ~Z~, it defines a distribution over ~Z~
+    - ~p <= mu e q~, the probability sum for all elements of ~Z~ is 1
+
+    - if we show that the sum of the measure defined by ~iterflip~ for all
+      elements in ~Z~ is 1 and we know that every element has a nonzero
+      probability then it must be that every element has a chance of being the
+      return value. Otherwise some element in the set would be excluded by
+      always terminating early (don't care) or by being skipped in a
+      non-terminating execution (do care).
