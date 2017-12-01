@@ -7,6 +7,7 @@ Require Import Utheory.
  *)
 Definition Space (A : Set) := Ensemble A.
 
+
 (** 
     - events, E = Pow(W) : 2^s
       Power_set A W.
@@ -31,17 +32,32 @@ Record MS (A : Set) : Type :=
 
 Record MF {A B: Set} (S1 : MS A) (S2 : MS B) :=
   mkMF {
-    func : A -> B;
+    mf_func : A -> B;
     preimage:
       forall E2,
         In (Ensemble B) (sigalg B S2) E2
         -> sig (fun E1 =>
-            (forall x, In B E2 (func x) <-> In A E1 x) /\
+            (forall x, In B E2 (mf_func x) <-> In A E1 x) /\
             In (Ensemble A) (sigalg A S1) E1)
   }.
 
+(** Literals 0 and 1 need to be from U not nat *)
+Open Local Scope U_scope.
+
 (** probability measure, mu : E -> [0,1] *)
-Definition Measure {A : Set} (ms : MS A) := forall E, In (Ensemble A) (sigalg A ms) E -> U.
+Record Measure {A : Set} (ms : MS A) :=
+  mkMeasure {
+    m_func : Ensemble A -> U;
+    empty: m_func (Empty_set A) = 0;
+    (** TODO this isn't quite right since we don't want to use the full set of A
+        as the domain but rather the full Ensemble of A *)
+    full: m_func (Full_set A) = 1;
+    addcount:
+      forall E1 E2,
+        In (Ensemble A) (sigalg A ms) E1
+        -> In (Ensemble A) (sigalg A ms) E2
+        -> m_func E1 + m_func E2 = m_func (Union A E1 E2)
+  }.
 
 (** probability space, PS : {S, mu} *)
 Record PS (A : Set) :=
@@ -50,37 +66,27 @@ Record PS (A : Set) :=
     mu : Measure ms
   }.
 
-(**
-    - push forward, f : (E -> [0,1]) -> (E' -> [0,1])
-      - proof, given a measurable function exists a pushforward
-      - alt type : PS A -> MS B -> MF (MS A) (MS B) -> PS B 
- *)
-
+(** push forward, f : (E -> [0,1]) -> (E' -> [0,1]) *)
 Definition push_forward {A B : Set} (psa : PS A) (msb : MS B) (mf : MF (ms A psa) msb ) : PS B.
   refine (mkPS B msb _).
   refine (_ (mu A psa)).
-  unfold Measure.
-  intros HmuA E HinB.
+  intros HmuA.
+  Check mkMeasure B msb.
 
+  assert (forall E, In (Ensemble B) (sigalg B msb) E -> U) as Hmap.
+  intros E Heinsig.
   assert (sig (fun E1 =>
-                 (forall x, In B E (func (ms A psa) msb mf x) <-> In A E1 x) /\
+                 (forall x, In B E ((mf_func (ms A psa) msb mf) x) <-> In A E1 x) /\
                  In (Ensemble A) (sigalg A (ms A psa)) E1)) as Hpre.
 
-  apply ((preimage (ms A psa) msb mf) E); auto.
-  elim Hpre. intros E1 Hpre'.
-  apply (HmuA E1).
-  destruct Hpre'; assumption.
-Defined.
+  apply ((preimage (ms A psa) msb mf) E). auto.
+  destruct Hpre as [E1 Hfacts].
+  apply ((m_func (ms A psa) HmuA) E1).
 
-  (** SigAlg B -> U from 
-      SigAlg B -> SigAlg A compose with
-      SigAlg A -> U *)
+  refine (mkMeasure B msb (fun Eb : Ensemble B => (m_func (ms A psa) HmuA) (Hmap Eb)) _ _ _).
+  
+  Defined.
 
-
-(** 
-    - p measurable functions, PMF { MF; f : (E -> [0,1]) -> (E' -> [0,1]) }
-      - default f formulation with inverse of f given by preimage constraint
- *)
 (** 
     - syntax
     - denotational semantics
@@ -93,3 +99,36 @@ Defined.
         - 
  *)
 
+Inductive term : Type :=
+| term_var : nat -> term
+(** x <- flip U *)
+| term_flip : term -> U -> term
+(** x <- unif n1 n2 *)
+| term_unif : term -> nat -> nat -> term
+(** x <- mf *)
+| term_ms : term -> mf -> term
+
+with mf : Type :=
+     | mf_plus : term -> term -> mf.
+
+Definition prod_space {A B : Set} (psa : PS A) (psb : PS B) : PS (prod A B).
+  refine (mkPS (A * B)
+               (mkMS (A * B)
+                     (fun ab =>
+                        In A (space A (ms A psa)) (fst ab) /\
+                        In B (space B (ms B psb)) (snd ab)))
+                (fun msab setab =>  mu A psa ).
+  
+
+
+Fixpoint mkdist {A : Set} (s : Space A) (init_terms : list term) : PS A := mkPS A s.
+
+Record prog :=
+  mkProg {
+    init : list term;
+    init_dist : mkdist 
+    statements : list term
+  }.
+
+Fixpoint init_ps (p : prog) : PS (:= 
+Fixpoint eval : prog -> PS := 
