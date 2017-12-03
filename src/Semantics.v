@@ -44,19 +44,48 @@ Record MF {A B: Set} (S1 : MS A) (S2 : MS B) :=
 (** Literals 0 and 1 need to be from U not nat *)
 Open Local Scope U_scope.
 
+(** NOTE this is normally a requirement of the definition of sigma algebra but
+    since we already know it's a powerset we can just do the proof and use it
+    so that we can more easily use the measurable space definition later
+*)
+Lemma space_in_sigalg : forall A ms, In (Space A) (sigalg A ms) (space A ms).
+Proof.
+  intros A ms.
+  apply Definition_of_Power_set.
+  unfold Included.
+  auto.
+Qed.
+
+Lemma elem_sigalg_subset_space :
+  forall (A : Set) ms E,
+    In (Ensemble A) (sigalg A ms) E
+    -> Included A E (space A ms).
+Proof.
+  intros A ms E Hin.
+  Admitted.
+
+
+Lemma union_in_sigalg :
+  forall (A : Set) ms E1 E2,
+    In (Ensemble A) (sigalg A ms) E1
+    -> In (Ensemble A) (sigalg A ms) E2
+    -> In (Ensemble A) (sigalg A ms) (Union A E1 E2).
+Proof.
+  intros A ms E1 E2 Hin1 Hin2.
+  apply Definition_of_Power_set.
+  apply Union_minimal; apply elem_sigalg_subset_space; auto.
+Qed.
+
+
 (** probability measure, mu : E -> [0,1] *)
 Record Measure {A : Set} (ms : MS A) :=
   mkMeasure {
-    m_func : Ensemble A -> U;
+    m_func : forall E, In (Ensemble A) (sigalg A ms) E -> U;
     empty: m_func (Empty_set A) = 0;
-    (** TODO this isn't quite right since we don't want to use the full set of A
-        as the domain but rather the full Ensemble of A *)
-    full: m_func (Full_set A) = 1;
+    full: m_func (space A ms) (space_in_sigalg A ms) = 1;
     addcount:
-      forall E1 E2,
-        In (Ensemble A) (sigalg A ms) E1
-        -> In (Ensemble A) (sigalg A ms) E2
-        -> m_func E1 + m_func E2 = m_func (Union A E1 E2)
+      forall E1 E2 pE1 pE2,
+        m_func E1 pE1 + m_func E2 pE2 = m_func (Union A E1 E2)
   }.
 
 (** probability space, PS : {S, mu} *)
