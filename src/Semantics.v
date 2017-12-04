@@ -62,8 +62,10 @@ Lemma elem_sigalg_subset_space :
     -> Included A E (space A ms).
 Proof.
   intros A ms E Hin.
-  Admitted.
-
+  unfold sigalg in Hin.
+  inversion Hin.
+  assumption.
+Qed.
 
 Lemma union_in_sigalg :
   forall (A : Set) ms E1 E2,
@@ -76,7 +78,6 @@ Proof.
   apply Union_minimal; apply elem_sigalg_subset_space; auto.
 Qed.
 
-
 (** probability measure, mu : E -> [0,1] *)
 Record Measure {A : Set} (ms : MS A) :=
   mkMeasure {
@@ -85,7 +86,8 @@ Record Measure {A : Set} (ms : MS A) :=
     full: m_func (space A ms) (space_in_sigalg A ms) = 1;
     addcount:
       forall E1 E2 pE1 pE2,
-        m_func E1 pE1 + m_func E2 pE2 = m_func (Union A E1 E2)
+        m_func E1 pE1 + m_func E2 pE2 =
+          m_func (Union A E1 E2) (union_in_sigalg A ms E1 E2 pE1 pE2) 
   }.
 
 (** probability space, PS : {S, mu} *)
@@ -111,9 +113,10 @@ Definition push_forward {A B : Set} (psa : PS A) (msb : MS B) (mf : MF (ms A psa
   apply ((preimage (ms A psa) msb mf) E). auto.
   destruct Hpre as [E1 Hfacts].
   apply ((m_func (ms A psa) HmuA) E1).
+  destruct Hfacts.
+  assumption.
 
   refine (mkMeasure B msb (fun Eb : Ensemble B => (m_func (ms A psa) HmuA) (Hmap Eb)) _ _ _).
-  
   Defined.
 
 (** 
