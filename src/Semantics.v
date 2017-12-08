@@ -100,35 +100,64 @@ Proof.
   apply Union_minimal; apply elem_sigalg_subset_space; auto.
 Qed.
 
+Lemma empty_bot : forall C x, In (Empty_set C) x -> False.
+Proof.
+  intros.
+  unfold In in H.
+  contradiction.
+Qed.
+
+Lemma union_empty :
+  forall A E, Same_set (Union (Empty_set A) E) E.
+Proof.
+Admitted.
+
+Lemma union_add_left_commute :
+  forall A E1 E2 a, Same_set (Union (Add A E1 a) E2) (Add A (Union E1 E2) a).
+Proof.
+Admitted.
+
+Lemma tail_in_sigalg :
+  forall { A : Set } { l l1 : list A } ms a,
+    In (@sigalg A l ms) (list_to_ensemble (a::l1))
+    -> In (sigalg ms) (list_to_ensemble l1).
+Proof.
+Admitted.
+
 Lemma concat_in_sigalg :
   forall { A : Set } { l : list A } ms { l1 l2 : list A },
     In (@sigalg A l ms) (list_to_ensemble l1)
     -> In (sigalg ms) (list_to_ensemble l2)
     -> In (sigalg ms) (list_to_ensemble (l1 ++ l2)).
 Proof.
-  Admitted.
-(*   intros A l ms l1 l2 Hdecidea Hin1 Hin2. *)
-(*   apply Definition_of_Power_set. *)
+  intros A l ms l1 l2 Hin1 Hin2.
+  assert ((list_to_ensemble (l1 ++ l2)) = (Union (list_to_ensemble l1) (list_to_ensemble l2))).
 
-(*   assert (Same_set *)
-(*             (list_to_ensemble (l1 ++ l2)) *)
-(*             (Union (list_to_ensemble l1) (list_to_ensemble l2))). *)
-(*   unfold Same_set. *)
-(*   split. *)
-(*   induction l1. *)
-(*   simpl. *)
-(*   admit. *)
+  induction l1.
+  simpl.
 
+  assert (Same_set (Union (Empty_set A) (list_to_ensemble l2)) (list_to_ensemble l2)).
+  apply union_empty.
+  apply Extensionality_Ensembles in H.
+  rewrite -> H.
+  reflexivity.
 
+  simpl.
+  assert (Same_set
+            (Union (Add A (list_to_ensemble l1) a) (list_to_ensemble l2))
+            (Add A (Union (list_to_ensemble l1) (list_to_ensemble l2)) a)).
+  apply union_add_left_commute.
+  apply Extensionality_Ensembles in H.
+  rewrite -> H.
 
-(*   apply Union_minimal; apply elem_sigalg_subset_space; auto. *)
-(* Qed. *)
+  assert (In (sigalg ms) (list_to_ensemble l1)).
+  apply (tail_in_sigalg ms a); auto.
+  apply IHl1 in H0.
+  rewrite -> H0.
+  auto.
 
-Lemma empty_bot : forall C x, In (Empty_set C) x -> False.
-Proof.
-  intros.
-  unfold In in H.
-  contradiction.
+  rewrite -> H.
+  apply union_in_sigalg; auto.
 Qed.
 
 
@@ -168,8 +197,10 @@ with mf : Type :=
      | mf_plus : term -> term -> mf.
 
 Lemma map_fst_inverse_list_prod : 
-  forall A B (l1:list A) (l2:list B) d, nodup d (map fst (list_prod l1 l2)) = l1.
-  intros A B l1 l2 Hdecide.
+  forall A B (l1:list A) (l2:list B) d,
+    NoDup l1
+    -> nodup d (map fst (list_prod l1 l2)) = l1.
+  intros A B l1 l2 Hnodup Hdecide.
   induction l1; auto.
 
   simpl.
@@ -186,6 +217,12 @@ Lemma map_fst_inverse_list_prod :
   intros.
   Admitted.
 
+Lemma map_snd_inverse_list_prod :
+  forall A B (l1:list A) (l2:list B) d,
+    NoDup l2
+    -> nodup d (map snd (list_prod l1 l2)) = l2.
+  intros A B l1 l2 Hnodup Hdecide.
+  Admitted.
 
 
 Lemma prod_fst_in_space :
@@ -195,12 +232,10 @@ Lemma prod_fst_in_space :
 Proof.
   intros A B l1 l2 ps Hdecide Hnodupl1.
   assert (nodup Hdecide (map fst (list_prod l1 l2)) = l1).
-  induction l1.
-  simpl; auto.
-
-  apply map_fst_inverse_list_prod.
+  apply (map_fst_inverse_list_prod). assumption.
   rewrite -> H.
-  Admitted.
+  apply space_in_sigalg.
+Qed.
 
 Lemma prod_snd_in_space :
   forall A B (l1 : list A) l2 (ps : @PS B l2) db,
@@ -209,10 +244,10 @@ Lemma prod_snd_in_space :
 Proof.
   intros A B l1 l2 ps Hdecide Hnodupl1.
   assert (nodup Hdecide (map snd (list_prod l1 l2)) = l2).
-  induction l2.
-  simpl; auto.
-  Admitted.
-
+  apply (map_snd_inverse_list_prod). assumption.
+  rewrite -> H.
+  apply space_in_sigalg.
+Qed.
 
 Definition dec (A : Set) := forall x y : A, {x = y} + {x <> y}.
 
@@ -277,6 +312,7 @@ Qed.
 
 
 
+
 Lemma nodup_prod :
   forall A B (l1 : list A) (l2 : list B),
     NoDup l1
@@ -313,7 +349,7 @@ Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A
   apply nodup_prod.
   exact (uniq (ms psa)).
   exact (uniq (ms psb)).
-
+  
 
 
 (** push forward, f : (E -> [0,1]) -> (E' -> [0,1]) *) 
