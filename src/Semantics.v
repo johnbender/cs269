@@ -30,6 +30,7 @@ Arguments Included [U].
 Arguments Power_set [U].
 Arguments Same_set [U].
 Arguments Union [U].
+Arguments Disjoint [U].
 
 Record MS {A : Set} (l : list A): Type := 
   mkMS {
@@ -80,13 +81,20 @@ Qed.
 
 Lemma elem_sigalg_subset_space :
   forall (A : Set) l ms E,
-    In (@sigalg A l ms) E
-    -> Included E (space ms).
+    In (@sigalg A l ms) E -> Included E (space ms).
 Proof.
   intros A l ms E Hin.
   unfold sigalg in Hin.
   inversion Hin.
   assumption.
+Qed.
+
+Lemma subset_sigalg_in_space :
+  forall (A : Set) l ms E,
+    Included E (space ms) -> In (@sigalg A l ms) E.
+Proof.
+  intros A l ms E Hincl.
+  apply Definition_of_Power_set; auto.
 Qed.
 
 Lemma union_in_sigalg :
@@ -114,6 +122,10 @@ Admitted.
 
 Lemma union_add_left_commute :
   forall A E1 E2 a, Same_set (Union (Add A E1 a) E2) (Add A (Union E1 E2) a).
+Proof.
+Admitted.
+
+Lemma subset_empty : forall A E, Included (Empty_set A) E.
 Proof.
 Admitted.
 
@@ -165,11 +177,11 @@ Qed.
 Record Measure {A : Set} { l : list A } (ms : MS l) :=
   mkMeasure {
     m_func : forall { l' }, In (sigalg ms) (list_to_ensemble l') -> U;
-    empty: @m_func nil = 0;
-    full: m_func (space_in_sigalg ms) = 1;
+    empty: @m_func nil == 0;
+    full: m_func (space_in_sigalg ms) == 1;
     addcount:
-      forall E1 E2 pE1 pE2,
-        @m_func E1 pE1 + @m_func E2 pE2 = m_func (concat_in_sigalg ms pE1 pE2) 
+      forall l1 l2 pl1 pl2,
+        @m_func l1 pl1 + @m_func l2 pl2 == m_func (concat_in_sigalg ms pl1 pl2) 
   }.
 
 (** probability space, PS : {S, mu} *)
@@ -182,19 +194,6 @@ Record PS { A : Set } (l : list A) :=
 Arguments mkPS [A l].
 Arguments ms [A l].
 Arguments mu [A l].
-
-
-Inductive term : Type :=
-| term_var : nat -> term
-(** x <- flip U *)
-| term_flip : term -> U -> term
-(** x <- unif n1 n2 *)
-| term_unif : term -> nat -> nat -> term
-(** x <- mf *)
-| term_ms : term -> mf -> term
-
-with mf : Type :=
-     | mf_plus : term -> term -> mf.
 
 Lemma map_fst_inverse_list_prod : 
   forall A B (l1:list A) (l2:list B) d,
@@ -237,6 +236,21 @@ Proof.
   apply space_in_sigalg.
 Qed.
 
+Lemma prod_fst_same_space :
+  forall (A : Set) B (l1 : list A) (l2 : list B) (ms : MS l1) da,
+    NoDup l1
+    -> Same_set (list_to_ensemble (nodup da (map fst (list_prod l1 l2)))) (space ms).
+Proof.
+  intros A B l1 l2 ps Hdecide Hnodupl1.
+  assert (nodup Hdecide (map fst (list_prod l1 l2)) = l1).
+  apply (map_fst_inverse_list_prod). assumption.
+  rewrite -> H.
+  unfold space.
+  unfold Same_set.
+  unfold Included.
+  auto.
+Qed.
+
 Lemma prod_snd_in_space :
   forall A B (l1 : list A) l2 (ps : @PS B l2) db,
     NoDup l2
@@ -247,6 +261,64 @@ Proof.
   apply (map_snd_inverse_list_prod). assumption.
   rewrite -> H.
   apply space_in_sigalg.
+Qed.
+
+
+Lemma prod_snd_same_space :
+  forall A (B : Set) (l1 : list A) (l2 : list B) (ms : MS l2) db,
+    NoDup l2
+    -> Same_set (list_to_ensemble (nodup db (map snd (list_prod l1 l2)))) (space ms) .
+Proof.
+  intros A B l1 l2 ps Hdecide Hnodupl1.
+  assert (nodup Hdecide (map snd (list_prod l1 l2)) = l2).
+  apply (map_snd_inverse_list_prod). assumption.
+  rewrite -> H.
+  unfold space.
+  unfold Same_set.
+  unfold Included.
+  auto.
+Qed.
+
+Lemma prod_subset_fst_subset : 
+      forall { A B : Set} l la lb msab da,
+        In (@sigalg (prod A B) (list_prod la lb) msab) (list_to_ensemble l)
+        -> Included (list_to_ensemble (nodup da (map fst l)))
+                   (list_to_ensemble (nodup da (map fst (list_prod la lb)))).
+Proof.
+  intros A B l la lb msab da Hinspace.
+  induction l.
+  simpl.
+  apply subset_empty.
+Admitted.
+
+
+Lemma in_prod_fst_in_space :
+  forall { A B : Set} l la lb msab msa da,
+    In (@sigalg (prod A B) (list_prod la lb) msab) (list_to_ensemble l)
+    ->  In (@sigalg A la msa) (list_to_ensemble (nodup da (map fst l))).
+Proof.
+  intros A B l la lb msab msa Hda Hinab.
+  apply elem_sigalg_subset_space in Hinab.
+  unfold space in Hinab.
+  assert (Same_set (list_to_ensemble (nodup Hda (map fst (list_prod la lb)))) (space msa)).
+  Check prod_fst_in_space.
+  apply (prod_fst_same_space A B la lb msa).
+  exact (uniq msa).
+  apply Extensionality_Ensembles in H.
+
+  assert (Included (list_to_ensemble (nodup Hda (map fst l))) (list_to_ensemble (nodup Hda (map fst (list_prod la lb))))).
+  apply (prod_subset_fst_subset l la lb msab Hda).
+  apply subset_sigalg_in_space.
+  assumption.
+
+  assert (Included (list_to_ensemble (nodup Hda (map fst l))) (list_to_ensemble la)).
+  apply (elem_sigalg_subset_space A la msa).
+  rewrite -> H in H0.
+  apply Definition_of_Power_set.
+  assumption.
+  rewrite -> H in H0.
+  apply Definition_of_Power_set.
+  assumption.
 Qed.
 
 Definition dec (A : Set) := forall x y : A, {x = y} + {x <> y}.
@@ -322,7 +394,7 @@ Proof.
   intros A B l1 l2 Hnodup1 Hnodup2.
   induction l1; simpl.
   constructor.
-  Admitted.
+Admitted.
 
 
 Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A l1) (psb : @PS B l2) : @PS (prod A B) (list_prod l1 l2).
@@ -330,17 +402,21 @@ Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A
       let decprod := (dec_prod A B da db) in 
       let l := (list_prod l1 l2) in
       let msab := (@mkMS (prod A B) l _) in
-      let mua := m_func (ms psa) (mu psa) in
-      let mub := m_func (ms psb) (mu psb) in 
+      let mua := @m_func A l1 (ms psa) (mu psa) in
+      let mub := @m_func B l2 (ms psb) (mu psb) in 
       let measure :=
-          fun list inab =>
-            let las : In (sigalg (ms psa)) (list_to_ensemble (nodup da (map fst l))) :=
-                prod_fst_in_space A B l1 l2 psa da (uniq (ms psa))
+          fun l' inab =>
+            let fstlist := nodup da (map fst l') in
+            let las : In (sigalg (ms psa)) (list_to_ensemble fstlist) :=
+                _ 
+                (* prod_fst_in_space A B l1 l2 psa da (uniq (ms psa)) *)
             in
-            let lbs : In (sigalg (ms psb)) (list_to_ensemble (nodup db (map snd l))) :=
-                prod_snd_in_space A B l1 l2 psb db (uniq (ms psb))
+            let sndlist := nodup db (map snd l') in
+            let lbs : In (sigalg (ms psb)) (list_to_ensemble sndlist) :=
+                _ 
+                (* prod_snd_in_space A B l1 l2 psb db (uniq (ms psb)) *)
             in
-            (mua las) * (mub lbs)
+            (mua fstlist las) * (mub sndlist lbs)
       in
       mkPS msab (mkMeasure (prod A B) l msab measure _ _ _)
     ).
@@ -349,8 +425,19 @@ Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A
   apply nodup_prod.
   exact (uniq (ms psa)).
   exact (uniq (ms psb)).
+  Focus 4.
+  Check in_prod_fst_in_space.
+  apply (in_prod_fst_in_space l' l1 l2 msab (ms psa) da); assumption.
   
+  (** the ensemble (fst l) subset of ensemble l1 (1, admitted)
+      the subset of the space is in msab (assumption inab)
+        then ensemble l' is a subset of ensemble l
+        then ensemble (fst l')  is a subset of ensemble (fst l) (by list_prod l1 l2)
+        then by 1 + trans, ensemble (fst l) is subset of ensemble l1
+        then since ensemble l1 is the space of msa we're done
+   *)
 
+  Admitted.
 
 (** push forward, f : (E -> [0,1]) -> (E' -> [0,1]) *) 
 Definition push_forward {A B} {l1 l2} (psa : @PS A l1) (msb : @MS B l2) (mf : MF (ms psa) msb) : @PS B l2.
@@ -450,14 +537,99 @@ Definition push_forward {A B} {l1 l2} (psa : @PS A l1) (msb : @MS B l2) (mf : MF
  *)
   
 
-Fixpoint mkdist {A : Set} (s : Space A) (init_terms : list term) : PS A := mkPS A s.
+Inductive init_term : Type :=
+(** x <- flip U *)
+| init_flip : nat -> U -> init_term
+(** x <- unif n1 n2 *)
+| init_unif : nat -> nat -> nat -> init_term.
+
+Inductive term : Type :=
+| term_var : nat -> term
+| term_lit : nat -> term
+| term_plus : term -> term -> term.
+
 
 Record prog :=
   mkProg {
-    init : list term;
-    init_dist : mkdist 
+    init : list init_term;
     statements : list term
   }.
 
-Fixpoint init_ps (p : prog) : PS (:= 
-Fixpoint eval : prog -> PS := 
+
+Require Import Coq.Bool.Bool.
+Require Import Uprop.
+
+Definition bool_space := true::false::nil.
+
+Fixpoint bool_measure_func (u : U) (l : list bool) : U :=
+  match l with
+  | nil => 0
+  | false::l' => [1-]u + bool_measure_func u l'
+  | true::l' => u + bool_measure_func u l'
+  end.
+
+Definition bool_ms : MS bool_space := 
+  mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space)).
+
+Check mkPS.
+Check mkMeasure.
+
+Definition bool_measure (u : U) : Measure bool_ms.
+  intros.
+  refine (
+      let measure := fun list Plistinspace => bool_measure_func u list in
+      mkMeasure bool bool_space bool_ms measure _ _ _
+    ).
+  unfold measure.
+  unfold bool_measure_func.
+  auto.
+  unfold bool_space.
+  unfold measure.
+  simpl.
+  Usimpl.
+  apply Uinv_opp_right.
+  intros.
+  induction l1.
+  unfold measure.
+  unfold bool_measure_func.
+  simpl.
+  Usimpl.
+  reflexivity.
+  simpl.
+  unfold measure.
+  case a.
+  - simpl.
+    unfold measure in IHl1.
+    assert ((u + (bool_measure_func u l1 + bool_measure_func u l2)) == (u + bool_measure_func u l1 + bool_measure_func u l2)).
+    apply Uplus_assoc.
+    rewrite <- H.
+    apply Uplus_eq_compat_right.
+    assert (In (sigalg bool_ms) (list_to_ensemble l1)).
+    apply (tail_in_sigalg bool_ms a); assumption.
+    apply (IHl1 H0).
+  - simpl.
+    unfold measure in IHl1.
+    assert (([1-]u + (bool_measure_func u l1 + bool_measure_func u l2)) == ([1-]u + bool_measure_func u l1 + bool_measure_func u l2)).
+    apply Uplus_assoc.
+    rewrite <- H.
+    apply Uplus_eq_compat_right.
+    assert (In (sigalg bool_ms) (list_to_ensemble l1)).
+    apply (tail_in_sigalg bool_ms a); assumption.
+    apply (IHl1 H0).
+Qed.
+
+Check mkMeasure.
+
+Fixpoint init_prog (i : list init_term) : (@PS bool bool_space) :=
+  match i with
+  | (init_flip n u) :: nil => 
+    let measure := bool_measure u in
+    mkPS (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space))) measure
+  | _ =>
+    let measure := bool_measure 0 in
+    mkPS (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space))) measure
+  end.
+
+Fixpoint eval : prog -> PS :=
+
+                                      

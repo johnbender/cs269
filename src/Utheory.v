@@ -13,6 +13,7 @@ Open Local Scope O_scope.
     - Relations : [x <= y], [x==y]
 *)
 
+Module Universe.
 Parameter U : Type.
 Generalizable All Variables.
 Declare Instance ordU: ord U.
@@ -103,6 +104,10 @@ Axiom archimedian : forall x, ~0 == x -> exc (fun n => [1/]1+n <= x).
 Axiom Uplus_right_continuous : forall k, continuous (mon (Uplus k)).
 Axiom Umult_right_continuous : forall k, continuous (mon (Umult k)).
 
+End Universe.
+
+Module Univ := Universe.
+Export Univ.
 
 Hint Resolve Udiff_0_1 Unth_prop.
 Hint Resolve Uplus_sym Uplus_assoc Umult_sym Umult_assoc.
