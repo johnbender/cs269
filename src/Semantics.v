@@ -547,7 +547,7 @@ Inductive init_term : Type :=
 Require Import Coq.Bool.Bool.
 Require Import Uprop.
 
-Definition bool_space := true::false::nil.
+Definition bool_space := false::true::nil.
 
 Fixpoint bool_measure_func (u : U) (l : list bool) : U :=
   match l with
@@ -578,7 +578,7 @@ Definition bool_measure (u : U) : Measure bool_ms.
   unfold measure.
   simpl.
   Usimpl.
-  apply Uinv_opp_right.
+  apply Uinv_opp_left.
   intros.
   induction l1.
   unfold measure.
@@ -671,6 +671,18 @@ Definition compose_mf (p : prog) (s : spaces) : spaces.
   exact (true::nil).
   Focus 3.
   exact (true::nil).
-Admitted.
+  apply (tail_in_sigalg bool_ms false).
+  unfold space.
+  assert (list_to_ensemble (nodup bool_dec bool_space) = list_to_ensemble (false::true::nil)).
+  simpl. auto.
+  rewrite <- H.
+  apply space_in_sigalg.
+  apply (tail_in_sigalg bool_ms false).
+  unfold space.
+  assert (list_to_ensemble (nodup bool_dec bool_space) = list_to_ensemble (false::true::nil)).
+  simpl. auto.
+  rewrite <- H.
+  apply space_in_sigalg.
+Qed.
 
 Definition eval (p : prog) : spaces := compose_mf p (init_prog (init p)).
