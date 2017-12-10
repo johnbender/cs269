@@ -118,23 +118,90 @@ Qed.
 Lemma union_empty :
   forall A E, Same_set (Union (Empty_set A) E) E.
 Proof.
-Admitted.
+  unfold Same_set.
+  intros.
+  unfold Included.
+  split.
+  unfold In.
+  intros.
+  inversion H.
+  apply empty_bot in H0.
+  exfalso.
+  auto.
+  assumption.
+  unfold In.
+  intros.
+  apply Union_intror.
+  assumption.
+Qed.
 
 Lemma union_add_left_commute :
   forall A E1 E2 a, Same_set (Union (Add A E1 a) E2) (Add A (Union E1 E2) a).
 Proof.
-Admitted.
+  intros.
+  unfold Same_set.
+  unfold Included.
+  unfold In.
+  split.
+  - intros.
+    unfold Add.
+    unfold Add in H.
+    inversion H.
+    unfold In in H0.
+    inversion H0.
+    apply Union_introl.
+    unfold In.
+    apply Union_introl.
+    assumption.
+    apply Union_intror.
+    assumption.
+    apply Union_introl.
+    apply Union_intror.
+    assumption.
+  - intros.
+    unfold Add.
+    unfold Add in H.
+    inversion H.
+    unfold In in H0.
+    inversion H0.
+    apply Union_introl.
+    unfold In.
+    apply Union_introl.
+    assumption.
+    apply Union_intror.
+    assumption.
+    apply Union_introl.
+    apply Union_intror.
+    assumption.
+Qed.
 
 Lemma subset_empty : forall A E, Included (Empty_set A) E.
 Proof.
-Admitted.
+  intros.
+  unfold Included.
+  intros.
+  apply empty_bot in H.
+  exfalso.
+  auto.
+Qed.
 
 Lemma tail_in_sigalg :
   forall { A : Set } { l l1 : list A } ms a,
     In (@sigalg A l ms) (list_to_ensemble (a::l1))
     -> In (sigalg ms) (list_to_ensemble l1).
 Proof.
-Admitted.
+  unfold sigalg.
+  intros.
+  simpl in H.
+  inversion H.
+  apply Definition_of_Power_set.
+  Check Inclusion_is_transitive.
+  apply (Inclusion_is_transitive A (list_to_ensemble l1) (Add A (list_to_ensemble l1) a)); auto.
+  unfold Add.
+  unfold Included.
+  intros.
+  apply Union_introl; auto.
+Qed.
 
 Lemma concat_in_sigalg :
   forall { A : Set } { l : list A } ms { l1 l2 : list A },
@@ -656,7 +723,7 @@ Definition compose_mf (p : prog) (s : spaces) : spaces.
         | (Some spacen1, Some spacen2) => 
           if eq_nat_dec n1 n2 then
             update_space (nvar, spacen1) s
-          else 
+          else
             let truen1 := (m_func (ms spacen1) (mu spacen1)) _ in
             let truen2 := (m_func (ms spacen2) (mu spacen2)) _ in
             let newspace := bool_ps (truen1 * truen2) in
