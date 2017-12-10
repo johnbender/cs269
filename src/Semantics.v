@@ -179,6 +179,7 @@ Record Measure {A : Set} { l : list A } (ms : MS l) :=
     m_func : forall { l' }, In (sigalg ms) (list_to_ensemble l') -> U;
     empty: @m_func nil == 0;
     full: m_func (space_in_sigalg ms) == 1;
+    (* TODO the following is only supposed to be true in the case of disjoint l1 l2 *)
     addcount:
       forall l1 l2 pl1 pl2,
         @m_func l1 pl1 + @m_func l2 pl2 == m_func (concat_in_sigalg ms pl1 pl2) 
@@ -543,19 +544,6 @@ Inductive init_term : Type :=
 (** x <- unif n1 n2 *)
 | init_unif : nat -> nat -> nat -> init_term.
 
-Inductive term : Type :=
-| term_var : nat -> term
-| term_lit : nat -> term
-| term_plus : term -> term -> term.
-
-
-Record prog :=
-  mkProg {
-    init : list init_term;
-    statements : list term
-  }.
-
-
 Require Import Coq.Bool.Bool.
 Require Import Uprop.
 
@@ -574,6 +562,9 @@ Definition bool_ms : MS bool_space :=
 Check mkPS.
 Check mkMeasure.
 
+(** TODO the content of this proof is suspect since it doesn't rely on the disjointness
+    of the lists
+*)
 Definition bool_measure (u : U) : Measure bool_ms.
   intros.
   refine (
@@ -618,18 +609,68 @@ Definition bool_measure (u : U) : Measure bool_ms.
     apply (IHl1 H0).
 Qed.
 
-Check mkMeasure.
+Definition bool_ps (u : U) :=
+  mkPS (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space))) (bool_measure u).
 
-Fixpoint init_prog (i : list init_term) : (@PS bool bool_space) :=
-  match i with
-  | (init_flip n u) :: nil => 
-    let measure := bool_measure u in
-    mkPS (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space))) measure
-  | _ =>
-    let measure := bool_measure 0 in
-    mkPS (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space))) measure
+Inductive term : Type :=
+| term_and : nat -> nat -> nat -> term.
+
+Record prog :=
+  mkProg {
+    init : list init_term;
+    statements : list term
+    }.
+
+Require Import FSets.FMapList.
+Require Import Structures.OrderedTypeEx.
+Require Import OrderedType.
+Require Import Decidable.
+
+Module Import VarMap := FMapList.Make Nat_as_OT.
+
+Definition spaces := VarMap.t (@PS bool bool_space).
+
+Notation "k |-> v" := (pair k v) (at level 60).
+
+Definition update_space (p: nat * (@PS bool bool_space)) (m: spaces) :=
+  VarMap.add (fst p) (snd p) m.
+Notation "[ ]init" := (VarMap.empty (@PS bool bool_space)).
+Notation "[ p1 , .. , pn ]init" :=
+  (update_space p1 .. (update_space pn (VarMap.empty (@PS bool bool_space))) .. ).
+
+Fixpoint init_prog ( l : list init_term ) : spaces :=
+  match l with
+  | nil => []init
+  | (init_flip n u) :: ini => update_space (n, bool_ps u) (init_prog ini)
+  (* TODO handle uniform distr *)                                        
+  | _ => []init
   end.
 
-Fixpoint eval : prog -> PS :=
+Definition compose_mf (p : prog) (s : spaces) : spaces.
+  refine (
+      match (statements p) with
+      | term_and nvar n1 n2 :: nil =>
+        let optspacen1 := VarMap.find n1 s in
+        let optspacen2 := VarMap.find n2 s in
+        match (optspacen1, optspacen2) with
+        | (Some spacen1, Some spacen2) => 
+          if eq_nat_dec n1 n2 then
+            update_space (nvar, spacen1) s
+          else 
+            let truen1 := (m_func (ms spacen1) (mu spacen1)) _ in
+            let truen2 := (m_func (ms spacen2) (mu spacen2)) _ in
+            let newspace := bool_ps (truen1 * truen2) in
+            update_space (nvar, newspace) s
+        | _ => s
+        end
+      | _ => s
+      end
+    ).
+  Unshelve.
+  Focus 2.
+  exact (true::nil).
+  Focus 3.
+  exact (true::nil).
+Admitted.
 
-                                      
+Definition eval (p : prog) : spaces := compose_mf p (init_prog (init p)).
