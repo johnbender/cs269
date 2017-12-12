@@ -704,9 +704,6 @@ Proof.
   contradiction.
 Qed.
 
-
-
-
 Lemma nodup_prod :
   forall A B (l1 : list A) (l2 : list B),
     NoDup l1
@@ -719,7 +716,6 @@ Proof.
 Admitted.
 
 
-
 Lemma not_empty_prod :
   forall A B (l1 : list A) (l2 : list B),
     l1 <> nil
@@ -729,7 +725,6 @@ Proof.
   intros A B l1 l2 Hnoemp1 Hnoemp2.
   induction l1; simpl.
 Admitted.
-
 
 
 Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A l1) (psb : @PS B l2) : @PS (prod A B) (list_prod l1 l2).
@@ -894,11 +889,12 @@ Fixpoint bool_measure_func (u : U) (l : list bool) : U :=
   | true::l' => u + bool_measure_func u l'
   end.
 
-Definition bool_ms : MS bool_space := 
-  mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space)).
-
-Check mkPS.
-Check mkMeasure.
+Definition bool_ms : MS bool_space.
+  refine (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space)) _).
+  unfold bool_space.
+  simpl.
+  discriminate.
+Qed.
 
 (** TODO the content of this proof is suspect since it doesn't rely on the disjointness
     of the lists
@@ -948,7 +944,7 @@ Definition bool_measure (u : U) : Measure bool_ms.
 Qed.
 
 Definition bool_ps (u : U) :=
-  mkPS (mkMS (NoDup_nodup bool_dec (nodup bool_dec bool_space))) (bool_measure u).
+  mkPS bool_ms (bool_measure u).
 
 Inductive term : Type :=
 | term_and : nat -> nat -> nat -> term.
