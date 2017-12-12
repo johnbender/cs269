@@ -37,6 +37,7 @@ Record MS {A : Set} (l : list A): Type :=
     carrier := A;
     enum := l;
     uniq : NoDup l;
+    not_empty : l <> nil;
     space := list_to_ensemble l;
     sigalg := Power_set space
   }.
@@ -516,11 +517,12 @@ Qed.
 Lemma prod_fst_same_space :
   forall (A : Set) B (l1 : list A) (l2 : list B) (ms : MS l1) da,
     NoDup l1
+    -> l2 <> nil
     -> Same_set (list_to_ensemble (nodup da (map fst (list_prod l1 l2)))) (space ms).
 Proof.
-  intros A B l1 l2 ps Hdecide Hnodupl1.
+  intros A B l1 l2 ps Hdecide Hnodupl1 Hnotempty.
   assert (nodup Hdecide (map fst (list_prod l1 l2)) = l1).
-  apply (map_fst_inverse_list_prod). assumption.
+  apply (map_fst_inverse_list_prod). intro. contradiction. assumption.
   rewrite -> H.
   unfold space.
   unfold Same_set.
@@ -568,19 +570,32 @@ Proof.
   apply subset_empty.
 Admitted.
 
+Lemma prod_subset_snd_subset : 
+      forall { A B : Set} l la lb msab db,
+        In (@sigalg (prod A B) (list_prod la lb) msab) (list_to_ensemble l)
+        -> Included (list_to_ensemble (nodup db (map snd l)))
+                   (list_to_ensemble (nodup db (map snd (list_prod la lb)))).
+Proof.
+  intros A B l la lb msab db Hinspace.
+  induction l.
+  simpl.
+  apply subset_empty.
+Admitted.
+
 
 Lemma in_prod_fst_in_space :
   forall { A B : Set} l la lb msab msa da,
-    In (@sigalg (prod A B) (list_prod la lb) msab) (list_to_ensemble l)
+    lb <> nil
+    -> In (@sigalg (prod A B) (list_prod la lb) msab) (list_to_ensemble l)
     ->  In (@sigalg A la msa) (list_to_ensemble (nodup da (map fst l))).
 Proof.
-  intros A B l la lb msab msa Hda Hinab.
+  intros A B l la lb msab msa Hda Hlbnotempty Hinab.
   apply elem_sigalg_subset_space in Hinab.
   unfold space in Hinab.
   assert (Same_set (list_to_ensemble (nodup Hda (map fst (list_prod la lb)))) (space msa)).
-  Check prod_fst_in_space.
   apply (prod_fst_same_space A B la lb msa).
   exact (uniq msa).
+  assumption.
   apply Extensionality_Ensembles in H.
 
   assert (Included (list_to_ensemble (nodup Hda (map fst l))) (list_to_ensemble (nodup Hda (map fst (list_prod la lb))))).
@@ -590,6 +605,36 @@ Proof.
 
   assert (Included (list_to_ensemble (nodup Hda (map fst l))) (list_to_ensemble la)).
   apply (elem_sigalg_subset_space A la msa).
+  rewrite -> H in H0.
+  apply Definition_of_Power_set.
+  assumption.
+  rewrite -> H in H0.
+  apply Definition_of_Power_set.
+  assumption.
+Qed.
+
+Lemma in_prod_snd_in_space :
+  forall { A B : Set} l la lb msab msb db,
+    la <> nil
+    -> In (@sigalg (prod A B) (list_prod la lb) msab) (list_to_ensemble l)
+    ->  In (@sigalg B lb msb) (list_to_ensemble (nodup db (map snd l))).
+Proof.
+  intros A B l la lb msab msb Hdb Hlbnotempty Hinab.
+  apply elem_sigalg_subset_space in Hinab.
+  unfold space in Hinab.
+  assert (Same_set (list_to_ensemble (nodup Hdb (map snd (list_prod la lb)))) (space msb)).
+  apply (prod_snd_same_space A B la lb msb).
+  exact (uniq msb).
+
+  apply Extensionality_Ensembles in H.
+
+  assert (Included (list_to_ensemble (nodup Hdb (map snd l))) (list_to_ensemble (nodup Hdb (map snd (list_prod la lb))))).
+  apply (prod_subset_snd_subset l la lb msab Hdb).
+  apply subset_sigalg_in_space.
+  assumption.
+
+  assert (Included (list_to_ensemble (nodup Hdb (map snd l))) (list_to_ensemble lb)).
+  apply (elem_sigalg_subset_space B lb msb).
   rewrite -> H in H0.
   apply Definition_of_Power_set.
   assumption.
@@ -674,21 +719,34 @@ Proof.
 Admitted.
 
 
+
+Lemma not_empty_prod :
+  forall A B (l1 : list A) (l2 : list B),
+    l1 <> nil
+    -> l2 <> nil
+    -> (list_prod l1 l2) <> nil.
+Proof.
+  intros A B l1 l2 Hnoemp1 Hnoemp2.
+  induction l1; simpl.
+Admitted.
+
+
+
 Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A l1) (psb : @PS B l2) : @PS (prod A B) (list_prod l1 l2).
   refine (
       let decprod := (dec_prod A B da db) in 
       let l := (list_prod l1 l2) in
-      let msab := (@mkMS (prod A B) l _) in
+      let msab := (@mkMS (prod A B) l _ _) in
       let mua := @m_func A l1 (ms psa) (mu psa) in
       let mub := @m_func B l2 (ms psb) (mu psb) in 
       let measure :=
           fun l' inab =>
             let fstlist := nodup da (map fst l') in
+            let sndlist := nodup db (map snd l') in
             let las : In (sigalg (ms psa)) (list_to_ensemble fstlist) :=
                 _ 
                 (* prod_fst_in_space A B l1 l2 psa da (uniq (ms psa)) *)
             in
-            let sndlist := nodup db (map snd l') in
             let lbs : In (sigalg (ms psb)) (list_to_ensemble sndlist) :=
                 _ 
                 (* prod_snd_in_space A B l1 l2 psb db (uniq (ms psb)) *)
@@ -703,16 +761,20 @@ Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A
   exact (uniq (ms psa)).
   exact (uniq (ms psb)).
   Focus 4.
-  Check in_prod_fst_in_space.
-  apply (in_prod_fst_in_space l' l1 l2 msab (ms psa) da); assumption.
-  
-  (** the ensemble (fst l) subset of ensemble l1 (1, admitted)
-      the subset of the space is in msab (assumption inab)
-        then ensemble l' is a subset of ensemble l
-        then ensemble (fst l')  is a subset of ensemble (fst l) (by list_prod l1 l2)
-        then by 1 + trans, ensemble (fst l) is subset of ensemble l1
-        then since ensemble l1 is the space of msa we're done
-   *)
+  apply not_empty_prod.
+  Check not_empty.
+  exact (not_empty l1 (ms psa)).
+  exact (not_empty l2 (ms psb)).
+
+  Focus 4.
+  apply (in_prod_fst_in_space l' l1 l2 msab (ms psa) da).
+  exact (not_empty l2 (ms psb)).
+  assumption.
+
+  Focus 4.
+  apply (in_prod_snd_in_space l' l1 l2 msab (ms psb) db).
+  exact (not_empty l1 (ms psa)).
+  assumption.
 
   Admitted.
 
