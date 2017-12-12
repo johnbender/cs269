@@ -108,6 +108,17 @@ Proof.
   apply Union_minimal; apply elem_sigalg_subset_space; auto.
 Qed.
 
+Lemma empty_in_sigalg :
+  forall A l ms, In (@sigalg A l ms) (Empty_set A).
+Proof.
+  intros.
+  apply Definition_of_Power_set.
+  unfold Included.
+  intros.
+  unfold In in H.
+  contradiction.
+Qed. 
+
 Lemma empty_bot : forall C x, In (Empty_set C) x -> False.
 Proof.
   intros.
@@ -315,38 +326,151 @@ Proof.
   contradiction.
 Qed.
 
+Lemma in_map_fst_singleton_eq :
+  forall A B a1 a2 (l : list B),
+    List.In (a1 : A) (map fst (map (fun y : B => (a2, y)) l))
+    -> a1 = a2.
+Proof.
+  intros.
+  induction l.
+  simpl in H. contradiction.
+  simpl in H.
+  case H; auto.
+Qed.
+
+Lemma not_in_not_in_fst_prod:
+  forall A B (l1 : list A) (l2 : list B) a,
+    ~ List.In a l1 ->
+    ~ List.In a (map fst (list_prod l1 l2)).
+Proof.
+  intros.
+  induction l1.
+  simpl. auto.
+  simpl.
+
+  assert (map fst (map (fun y : B => (a0, y)) l2 ++ list_prod l1 l2) =
+          map fst (map (fun y : B => (a0, y)) l2) ++ (map fst (list_prod l1 l2))).
+  apply map_app.
+  rewrite -> H0.
+  unfold not.
+  intros.
+
+  apply in_app_or in H1.
+  apply not_in_cons in H.
+  case H1.
+  intros.
+  assert (a = a0).
+  destruct H; auto.
+  apply (in_map_fst_singleton_eq A B a a0 l2); assumption.
+  destruct H; auto.
+  intro.
+  destruct H.
+  apply IHl1 in H3.
+  contradiction.
+Qed.
+
+Lemma map_fst_in_list_not_empty :
+  forall A B (a : A) l, List.In a (map fst (map (fun y : B => (a, y)) l)) -> l <> nil.
+Proof.
+  intros.
+  induction l.
+  contradiction.
+  discriminate.
+Qed.
+
+Lemma map_fst_no_in_list_empty :
+  forall A B (a : A) l, (~ List.In a (map fst (map (fun y : B => (a, y)) l))) -> l = nil.
+Proof.
+  intros.
+  induction l.
+  reflexivity.
+  simpl in H.
+  unfold not in H.
+  exfalso.
+  apply H.
+  left.
+  auto.
+Qed.
+
+Lemma nodup_singleton_prod_singleton :
+  forall A B (a : A) (l : list B) d,
+    l <> nil 
+    -> nodup d (map fst (map (fun y : B => (a, y)) l)) = a::nil.
+Proof.
+  intros.
+  induction l.
+  contradiction.
+  simpl.
+  case (in_dec d a (map fst (map (fun y : B => (a, y)) l))).
+  intros.
+
+  assert (List.In a (map fst (map (fun y : B => (a, y)) l)) -> l <> nil).
+  apply map_fst_in_list_not_empty.
+  apply H0 in i.
+  apply IHl in i.
+  assumption.
+
+  intros.
+
+  assert (~List.In a (map fst (map (fun y : B => (a, y)) l)) -> l = nil).
+  apply map_fst_no_in_list_empty.
+  apply H0 in n.
+  rewrite -> n.
+  simpl.
+  reflexivity.
+Qed.
+
 Lemma map_fst_inverse_list_prod : 
   forall A B (l1:list A) (l2:list B) d,
-    NoDup l1
+    l2 <> nil
+    -> NoDup l1
     -> nodup d (map fst (list_prod l1 l2)) = l1.
-  intros A B l1 l2 Hnodup Hdecide.
+  intros A B l1 l2 Hdecide Hl2notempty Hnodup.
   induction l1; auto.
 
   simpl.
-  assert ((map fst (map (fun y : B => (a, y)) l2 ++ list_prod l1 l2)) = (map fst (map (fun y : B => (a, y)) l2)) ++ (map fst (list_prod l1 l2))) as Hmapdist.
+  assert ((map fst (map (fun y : B => (a, y)) l2 ++ list_prod l1 l2)) =
+          (map fst (map (fun y : B => (a, y)) l2)) ++ (map fst (list_prod l1 l2))) as Hmapdist.
   apply map_app.
   rewrite -> Hmapdist.
 
   
-  assert (nodup Hnodup (map fst (map (fun y : B => (a, y)) l2) ++ map fst (list_prod l1 l2)) =
-          nodup Hnodup (map fst (map (fun y : B => (a, y)) l2)) ++ nodup Hnodup (map fst (list_prod l1 l2))).
+  assert (nodup Hdecide (map fst (map (fun y : B => (a, y)) l2) ++ map fst (list_prod l1 l2)) =
+          nodup Hdecide (map fst (map (fun y : B => (a, y)) l2)) ++ nodup Hdecide (map fst (list_prod l1 l2))).
 
   apply nodup_disj_dist.
-  admit.
+  intros.
 
+  assert (a0 = a).
+  apply (in_map_fst_singleton_eq A B a0 a l2); assumption.
+
+  rewrite -> H0 in H.
+  inversion Hnodup.
+  rewrite -> H0.
+
+  assert (forall A B (l1 : list A) (l2 : list B) a, ~ List.In a l1 ->  ~ List.In a (map fst (list_prod l1 l2))).
+  apply not_in_not_in_fst_prod.
+
+  apply H5. assumption.
   rewrite -> H.
 
-  assert (nodup Hnodup (map fst (map (fun y : B => (a, y)) l2)) = a::nil) as Hfactor.
-  admit.
+  assert (nodup Hdecide (map fst (map (fun y : B => (a, y)) l2)) = a::nil) as Hfactor.
+  apply nodup_singleton_prod_singleton.
+  assumption.
 
   rewrite -> Hfactor.
 
   assert (NoDup l1).
-  admit.
+
+  assert (NoDup (a::l1) -> ~ List.In a l1 /\ NoDup l1).
+  apply NoDup_cons_iff.
+  apply H0 in Hnodup.
+  destruct Hnodup. auto.
+
   apply IHl1 in H0.
   rewrite -> H0.
   auto.
-
+Qed.
 
 Lemma map_snd_inverse_list_prod :
   forall A B (l1:list A) (l2:list B) d,
@@ -355,6 +479,18 @@ Lemma map_snd_inverse_list_prod :
   intros A B l1 l2 Hnodup Hdecide.
   Admitted.
 
+Lemma empty_pair_fst_empty_nodup :
+  forall A B (l : list A) d, nodup d (map fst (list_prod l (nil : list B))) = nil.
+Proof.
+  intros.
+  induction l.
+  simpl.
+  auto.
+
+  simpl.
+  rewrite -> IHl.
+  auto.
+Qed.
 
 Lemma prod_fst_in_space :
   forall A B l1 (l2 : list B) (ps : @PS A l1) da,
@@ -362,8 +498,17 @@ Lemma prod_fst_in_space :
     -> In (sigalg (ms ps)) (list_to_ensemble (nodup da (map fst (list_prod l1 l2)))).
 Proof.
   intros A B l1 l2 ps Hdecide Hnodupl1.
-  assert (nodup Hdecide (map fst (list_prod l1 l2)) = l1).
-  apply (map_fst_inverse_list_prod). assumption.
+  induction l2.
+  assert ((nodup Hdecide (map fst (list_prod l1 (nil : list B)))) = nil).
+  apply empty_pair_fst_empty_nodup.
+  rewrite -> H.
+  simpl.
+  apply empty_in_sigalg.
+
+  assert (nodup Hdecide (map fst (list_prod l1 (a::l2))) = l1).
+  apply (map_fst_inverse_list_prod).
+  discriminate.
+  assumption.
   rewrite -> H.
   apply space_in_sigalg.
 Qed.
