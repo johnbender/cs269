@@ -263,6 +263,58 @@ Arguments mkPS [A l].
 Arguments ms [A l].
 Arguments mu [A l].
 
+Lemma nodup_disj_dist :
+  forall A l1 l2 d1,
+    (forall a:A, List.In a l1 -> ~ List.In a l2)
+    -> nodup d1 (l1 ++ l2) = nodup d1 l1 ++ nodup d1 l2.
+Proof.
+  intros.
+  induction l1.
+  simpl.
+  reflexivity.
+
+  simpl.
+  
+  case (in_dec d1 a l1).
+  intros.
+  assert (List.In a (l1 ++ l2)).
+  apply in_or_app. left. auto.
+  simpl.
+  Check (in_dec d1 a (l1 ++ l2)).
+  case (in_dec d1 a (l1 ++ l2)).
+  intros.
+  apply IHl1.
+  intros.
+  apply H.
+  apply in_cons. auto.
+  intros.
+  contradiction.
+  intros.
+  case (in_dec d1 a (l1 ++ l2)).
+  Focus 2.
+  intros.
+  assert ((a :: nodup d1 l1) ++ nodup d1 l2 =  (a :: (nodup d1 l1 ++ nodup d1 l2))).
+  apply app_comm_cons; assumption.
+  rewrite -> H0.
+  assert (nodup d1 (l1 ++ l2) = nodup d1 l1 ++ nodup d1 l2).
+  apply IHl1.
+  intros.
+  apply H.
+  apply in_cons. auto.
+  rewrite -> H1.
+  reflexivity.
+  intros.
+
+  apply in_app_or in i.
+  case i.
+  intros. contradiction.
+  intros.
+  assert (~List.In a l2).
+  apply H.
+  apply in_eq.
+  contradiction.
+Qed.
+
 Lemma map_fst_inverse_list_prod : 
   forall A B (l1:list A) (l2:list B) d,
     NoDup l1
@@ -275,14 +327,26 @@ Lemma map_fst_inverse_list_prod :
   apply map_app.
   rewrite -> Hmapdist.
 
-  assert (
-      forall A l1 l2 (a : A) x d1,
-        (List.In x l1 -> ~ List.In a l2)
-        -> nodup d1 (l1 ++ l2) = nodup d1 l1 ++ nodup d1 l2
-    ).
+  
+  assert (nodup Hnodup (map fst (map (fun y : B => (a, y)) l2) ++ map fst (list_prod l1 l2)) =
+          nodup Hnodup (map fst (map (fun y : B => (a, y)) l2)) ++ nodup Hnodup (map fst (list_prod l1 l2))).
 
-  intros.
-  Admitted.
+  apply nodup_disj_dist.
+  admit.
+
+  rewrite -> H.
+
+  assert (nodup Hnodup (map fst (map (fun y : B => (a, y)) l2)) = a::nil) as Hfactor.
+  admit.
+
+  rewrite -> Hfactor.
+
+  assert (NoDup l1).
+  admit.
+  apply IHl1 in H0.
+  rewrite -> H0.
+  auto.
+
 
 Lemma map_snd_inverse_list_prod :
   forall A B (l1:list A) (l2:list B) d,
