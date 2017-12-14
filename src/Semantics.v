@@ -1,13 +1,55 @@
+
+(** * Project Summary
+
+The original purpose of this project was to explore optimizations to
+probabilistic programs. That is, fixing inputs, probablistic expressions can be
+seen as encoding a particular distributions and we might like to
+replace some expressions with easier to query representations of the same
+distribution.
+
+** Goals
+
+- term language and semantics based on measurable functions
+  - measure space
+  - measure
+  - measurable function
+  - probability space
+  - initialization terms
+  - measure function terms
+  - product space 
+  - push forward
+- proof of commutative function composition under some restrictions
+  - no progress
+
+In what follows, any [Lemma] without an accompanying [Admitted] has a proof.
+There are about 800 lines of proof code.
+
+*)
+
+
 Require Import List.
 Require Import Coq.Sets.Ensembles.
 Require Import Coq.Sets.Powerset.
 Require Import Utheory.
 
-(** Definitions
-    - sample space, W : [A]
+(** * Basic Definitions
+
+** Measurable Space
+
+First we define a space using [Coq.Sets.Ensembles]. The unfolded definition of
+an enemble is a function of type [A -> Prop] and forms a "filter" on the carrier
+type [A].
+
  *)
 Definition Space (A : Set) := Ensemble A.
 
+(**
+
+Notably this definition of the space isn't really something we can compute with
+so instead we a fairly standard approach of making a list of the elements of our
+set and then building an Ensemble from that.
+
+*)
 (* https://stackoverflow.com/questions/22353508/how-to-create-ensemble-in-coq#22354969 *)
 Fixpoint list_to_ensemble {A:Type} (l : list A) {struct l}: Ensemble A :=
   match l with
@@ -15,15 +57,16 @@ Fixpoint list_to_ensemble {A:Type} (l : list A) {struct l}: Ensemble A :=
     | hd::tl => Add A (list_to_ensemble tl) hd
   end.
 
-(** 
-    - events, E = Pow(W) : 2^s
-      Power_set A W.
- *)
-Definition SigAlg (A : Set) := Ensemble (Ensemble A).
+(**
 
-(** 
-    - measurable space, S : { W * E, pow : E = 2^W }
- *)
+This particular encoding of sets and measurable spaces turned out to be fairly
+effort intensive to work with. The idea was that the lemmas and facilities in
+[Coq.Sets.Powerset] which is built on Ensembles would make it easier to do
+proofs regarding the sigma algebra for a measurable space (which we assume to be
+a powerset of the space for simplicity's sake).
+
+*)
+Definition SigAlg (A : Set) := Ensemble (Ensemble A).
 
 Arguments In [U].
 Arguments Included [U].
@@ -31,6 +74,17 @@ Arguments Power_set [U].
 Arguments Same_set [U].
 Arguments Union [U].
 Arguments Disjoint [U].
+
+(**
+
+Finally we encode a measurable set with a list (reads: subset) of elements of
+type [A]. We further require, for technical reasons, that there are no
+duplications in the list and that the list is not empty. Again we assume for
+simplicity's sake that the sigma algebra of the measurable space is the powerset
+of its space derived from [list_to_ensemble] applied to the argument list.
+
+*)
+
 
 Record MS {A : Set} (l : list A): Type := 
   mkMS {
@@ -47,16 +101,26 @@ Arguments uniq [A l].
 Arguments space [A l].
 Arguments sigalg [A l].
 
-(** 
-    - measurable function, MF { f : S -> S; Pf : preimage }
-      - proof, compose f g : MF
- *)
+(** ** Measurable Function
 
-Record MF {A B: Set} {l1 l2} (S1 : @MS A l1) (S2 : @MS B l2) :=
+We encode a measurable function as a function between the carrier types [A] and
+[B] of two measurable spaces [s1] and [s2]. Along with the function we require
+the preimage constraint encoded as first order logic. Namely, for every set in
+the sigma algebra of [s2] there exists a set in the sigma algebra in [s1] such
+that the elements of the second set can be used with the function to generate
+the elements of the first set.
+
+Of interest here (we will explain more later) the computational content of
+the proof object for the preimage constraint (a dependently typed function) can
+be used to build a generic [push_forward] function.
+
+*)
+
+Record MF {A B: Set} {l1 l2} (s1 : @MS A l1) (s2 : @MS B l2) :=
   mkMF {
     mf_func : A -> B;
-    msa := S1;
-    msb := S2;
+    msa := s1;
+    msb := s2;
     preimage:
       forall E2,
         In (sigalg msb) E2
@@ -66,13 +130,25 @@ Record MF {A B: Set} {l1 l2} (S1 : @MS A l1) (S2 : @MS B l2) :=
     }.
 
 
-(** Literals 0 and 1 need to be from U not nat *)
+(* Literals 0 and 1 need to be from U not nat *)
 Open Local Scope U_scope.
 
-(** NOTE this is all normally a requirement of the definition of sigma algebra
-    but since we already know it's a powerset we can just do the proof and use
-    it so that we can more easily use the measurable space definition later *)
-Lemma space_in_sigalg : forall { A : Set } {l : list A} ms, In (@sigalg A l ms) (space ms).
+(** ** Helper Lemmas
+
+There are a lot of helper lemmas. Most of them are involved with converting
+facts about lists without duplicates to facts about ensembles. This is the
+downside of the encoding. There are also some basic set theoretic concepts
+derived from the facts in the standard library for ensembles.
+
+*** Sigma Algebra Facts
+
+For example, [space_in_sigalg] is all normally a requirement of the definition of sigma
+algebra but since we already know it's a powerset we can just do the proof and
+use it so that we can more easily use the probability space definition.
+
+*)
+Lemma space_in_sigalg :
+  forall { A : Set } {l : list A} ms, In (@sigalg A l ms) (space ms).
 Proof.
   intros A l ms.
   apply Definition_of_Power_set.
@@ -197,6 +273,17 @@ Proof.
   auto.
 Qed.
 
+(** *** Basic [list_to_ensemble] Facts
+
+The following lemmas provide useful facts about the ensembles generated from
+lists and how they releated to the sigma algebras.
+
+For example, [tail_in_sigalg] says that if a an ensemble generated from a list
+with [a] as its head and [l1] as its tail is in the sigma algebra for some
+measurable space [ms] then the ensembel generated from the tail [l1] is too.
+
+*)
+
 Lemma tail_in_sigalg :
   forall { A : Set } { l l1 : list A } ms a,
     In (@sigalg A l ms) (list_to_ensemble (a::l1))
@@ -214,6 +301,16 @@ Proof.
   intros.
   apply Union_introl; auto.
 Qed.
+
+(**
+
+[concat_in_sigalg] says that if two ensembles generated by the lists [l1] and
+[l1] are in the sigma algebra from some measurable space [ms] then the ensemble
+generated by their concatenation is too. Note that this is true in spite of
+possible duplicated elements because the conversion to an ensemble is the
+conversion to set-like behavior where duplicates are ingored.
+
+*)
 
 Lemma concat_in_sigalg :
   forall { A : Set } { l : list A } ms { l1 l2 : list A },
@@ -252,7 +349,19 @@ Proof.
 Qed.
 
 
-(** probability measure, mu : E -> [0,1] *)
+(** ** Probability Measure
+
+We encode a probability measure as a dependent function that takes a list [l']
+and a proof that it belongs to the sigma algebra of the measureable space [ms]
+and produces a value on the unit interval [U] which we have borrowed from the
+ALEA library (1). We also require proofs that the function returns 0 for the
+empty list, 1 for the space of the measurable space, and that the function it
+satisfies the additive union property. Note that this is not the full countable
+additive union property expected of a measure but it seems one should be able to
+derive that property from this one using an induction argument.
+
+*)
+
 Record Measure {A : Set} { l : list A } (ms : MS l) :=
   mkMeasure {
     m_func : forall { l' }, In (sigalg ms) (list_to_ensemble l') -> U;
@@ -264,7 +373,12 @@ Record Measure {A : Set} { l : list A } (ms : MS l) :=
         @m_func l1 pl1 + @m_func l2 pl2 == m_func (concat_in_sigalg ms pl1 pl2) 
   }.
 
-(** probability space, PS : {S, mu} *)
+(** ** Probability Space
+
+Finally we can define a probability space as the combination of a measurable
+space and a (probability) measure for that space.
+
+ *)
 Record PS { A : Set } (l : list A) :=
   mkPS {
     ms : MS l;
@@ -274,6 +388,17 @@ Record PS { A : Set } (l : list A) :=
 Arguments mkPS [A l].
 Arguments ms [A l].
 Arguments mu [A l].
+
+(**
+
+** Product Space Lemmas
+
+The following is a large sequence of lemmas used in making progress on the proof
+that one can construct a probability space as the produce of two existing
+probability spaces.
+
+For example [nodup_disj_dis]
+*)
 
 Lemma nodup_disj_dist :
   forall A l1 l2 d1,
@@ -771,6 +896,13 @@ Definition prod_space {A B : Set} {l1 l2} (da : dec A) (db : dec B) (psa : @PS A
   exact (not_empty l1 (ms psa)).
   assumption.
 
+  simpl.
+
+  unfold measure.
+  simpl.
+  unfold mua.
+  simpl.
+
   Admitted.
 
 (** push forward, f : (E -> [0,1]) -> (E' -> [0,1]) *) 
@@ -1020,3 +1152,9 @@ Definition compose_mf (p : prog) (s : spaces) : spaces.
 Qed.
 
 Definition eval (p : prog) : spaces := compose_mf p (init_prog (init p)).
+
+(**
+
+1. https://www.lri.fr/~paulin/ALEA/
+
+*)
